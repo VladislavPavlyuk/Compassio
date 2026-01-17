@@ -23,22 +23,22 @@
 <body>
 <header>
     <h1>Compassio</h1>
-    <form method="get" action="/">
-        <input type="text" name="q" placeholder="Search profession name"
-               th:value="${q}"/>
+    <form method="get" action="/" id="searchForm">
+        <input type="text" name="q" id="searchInput" placeholder="Search by name or code"
+               autocomplete="off" th:value="${q}"/>
         <button type="submit">Search</button>
         <a th:href="@{/}">Reset</a>
     </form>
 </header>
 
-<div class="meta" th:if="${total > 0}">
+<div class="meta" id="metaText" th:if="${total > 0}">
     <span th:text="'Showing ' + (${page.number} * ${page.size} + 1) + '–' + (${page.number} * ${page.size} + ${page.numberOfElements}) + ' of ' + ${total}"></span>
 </div>
-<div class="meta" th:if="${total == 0}">
+<div class="meta" id="metaEmpty" th:if="${total == 0}">
     No data found.
 </div>
 
-<table th:if="${total > 0}">
+<table id="resultsTable" th:if="${total > 0}">
     <thead>
     <tr>
         <th style="width: 140px;">Code</th>
@@ -46,7 +46,7 @@
         <th style="width: 80px;">Level</th>
     </tr>
     </thead>
-    <tbody>
+    <tbody id="resultsBody">
     <tr th:each="p : ${page.content}">
         <td th:text="${p.code}"></td>
         <td th:text="${p.name}"></td>
@@ -55,12 +55,73 @@
     </tbody>
 </table>
 
-<div class="pager" th:if="${page.totalPages > 1}">
+<div class="pager" id="pager" th:if="${page.totalPages > 1}">
     <a th:if="${page.hasPrevious()}"
        th:href="@{/(page=${page.number - 1}, size=${page.size}, q=${q})}">Prev</a>
     <span th:text="'Page ' + (${page.number} + 1) + ' / ' + ${page.totalPages}"></span>
     <a th:if="${page.hasNext()}"
        th:href="@{/(page=${page.number + 1}, size=${page.size}, q=${q})}">Next</a>
 </div>
+
+<script>
+    const input = document.getElementById('searchInput');
+    const body = document.getElementById('resultsBody');
+    const table = document.getElementById('resultsTable');
+    const metaText = document.getElementById('metaText');
+    const metaEmpty = document.getElementById('metaEmpty');
+    const pager = document.getElementById('pager');
+    const form = document.getElementById('searchForm');
+    let timer = null;
+
+    const renderRows = (items) => {
+        body.innerHTML = '';
+        for (const item of items) {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${item.code}</td><td>${item.name}</td><td>${item.level}</td>`;
+            body.appendChild(row);
+        }
+    };
+
+    const renderMeta = (page) => {
+        const total = page.totalElements || 0;
+        if (total === 0) {
+            metaText && (metaText.style.display = 'none');
+            metaEmpty && (metaEmpty.style.display = 'block');
+            table && (table.style.display = 'none');
+            pager && (pager.style.display = 'none');
+            return;
+        }
+        const start = page.number * page.size + 1;
+        const end = page.number * page.size + page.numberOfElements;
+        metaText && (metaText.textContent = `Showing ${start}–${end} of ${total}`);
+        metaText && (metaText.style.display = 'block');
+        metaEmpty && (metaEmpty.style.display = 'none');
+        table && (table.style.display = 'table');
+        pager && (pager.style.display = 'none');
+    };
+
+    const search = async (q) => {
+        const url = new URL('/api/professions', window.location.origin);
+        if (q && q.trim().length > 0) {
+            url.searchParams.set('q', q.trim());
+        }
+        url.searchParams.set('page', '0');
+        url.searchParams.set('size', '50');
+        const res = await fetch(url);
+        const data = await res.json();
+        renderRows(data.content || []);
+        renderMeta(data);
+    };
+
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => search(input.value), 250);
+    });
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        search(input.value);
+    });
+</script>
 </body>
 </html>
