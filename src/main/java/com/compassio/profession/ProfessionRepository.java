@@ -12,7 +12,7 @@ public interface ProfessionRepository extends JpaRepository<Profession, Long> {
             where (
                 lower(p.name) like lower(concat('%', :q, '%'))
                 or lower(p.code) like lower(concat('%', :q, '%'))
-                or (:digits <> '' and regexp_replace(p.name, '\\D', '', 'g') like concat('%', :digits, '%'))
+                or (:digits <> '' and cast(function('regexp_replace', p.name, '\\D', '', 'g') as string) like concat('%', :digits, '%'))
             )
             order by p.code asc
             """)

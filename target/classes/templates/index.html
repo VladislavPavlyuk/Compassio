@@ -8,7 +8,7 @@
         body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
         header { display: flex; gap: 16px; align-items: baseline; margin-bottom: 16px; }
         h1 { margin: 0; font-size: 22px; }
-        form { display: flex; gap: 8px; align-items: center; }
+        form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
         input[type="text"] { padding: 6px 8px; width: 360px; }
         button { padding: 6px 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 12px; }
@@ -18,17 +18,28 @@
         .pager { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
         .pager a { text-decoration: none; color: #1a4fd7; }
         .pager span { color: #666; }
+        .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); display: none; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: #fff; padding: 16px; border-radius: 6px; width: 420px; }
+        .modal-content h2 { margin: 0 0 12px 0; font-size: 18px; }
+        .modal-form { display: flex; gap: 8px; flex-direction: column; }
+        .modal-form input { padding: 6px 8px; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
     </style>
 </head>
 <body>
 <header>
-    <h1>Compassio</h1>
+    <div>
+        <h1>Compassio</h1>
+        <div style="font-size: 13px; margin-top: 4px;" id="userInfo"></div>
+    </div>
     <form method="get" action="/" id="searchForm">
         <input type="text" name="q" id="searchInput" placeholder="Search by name or code"
                autocomplete="off" th:value="${q}"/>
         <button type="submit">Search</button>
         <button type="button" id="filterSelectedBtn" style="display: none;">Filter selected</button>
         <button type="button" id="clearFilterBtn" style="display: none;">Clear filter</button>
+        <button type="button" id="saveSelectionBtn" style="display: none;">Save selection</button>
         <a th:href="@{/}">Reset</a>
     </form>
 </header>
@@ -72,6 +83,23 @@
 </div>
 <div class="meta" id="selectedMeta"></div>
 
+<div class="modal" id="authModal">
+    <div class="modal-content">
+        <h2>Authorization</h2>
+        <div class="meta" id="authMessage"></div>
+        <form class="modal-form" id="authForm">
+            <input type="email" id="authEmail" placeholder="Email" required/>
+            <input type="password" id="authPassword" placeholder="Password (min 8)" required/>
+            <div class="modal-actions">
+                <button type="button" id="loginSaveBtn">Login & Save</button>
+                <button type="button" id="registerSaveBtn">Register & Save</button>
+                <button type="button" id="closeModal">Close</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
     const input = document.getElementById('searchInput');
     const body = document.getElementById('resultsBody');
@@ -80,14 +108,45 @@
     const metaEmpty = document.getElementById('metaEmpty');
     const pager = document.getElementById('pager');
     const form = document.getElementById('searchForm');
+    const selectedMeta = document.getElementById('selectedMeta');
+    const filterSelectedBtn = document.getElementById('filterSelectedBtn');
+    const clearFilterBtn = document.getElementById('clearFilterBtn');
+    const saveSelectionBtn = document.getElementById('saveSelectionBtn');
+    const selectedMap = new Map();
+    let lastResults = null;
+    let filteredMode = false;
     let timer = null;
+    const authModal = document.getElementById('authModal');
+    const authMessage = document.getElementById('authMessage');
+    const authForm = document.getElementById('authForm');
+    const closeModal = document.getElementById('closeModal');
+    const loginSaveBtn = document.getElementById('loginSaveBtn');
+    const registerSaveBtn = document.getElementById('registerSaveBtn');
+    const userInfo = document.getElementById('userInfo');
+
+    const createCell = (text) => {
+        const td = document.createElement('td');
+        td.textContent = text == null ? '' : String(text);
+        return td;
+    };
 
     const renderRows = (items) => {
         body.innerHTML = '';
         for (const item of items) {
             const row = document.createElement('tr');
-            const checked = selectedMap.has(item.code) ? 'checked' : '';
-            row.innerHTML = `<td><input type="checkbox" name="professionSelect" value="${item.code}" data-name="${item.name}" data-level="${item.level}" ${checked}/></td><td>${item.code}</td><td>${item.name}</td><td>${item.level}</td>`;
+            const selectCell = document.createElement('td');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.name = 'professionSelect';
+            checkbox.value = item.code;
+            checkbox.dataset.name = item.name || '';
+            checkbox.dataset.level = String(item.level ?? '');
+            checkbox.checked = selectedMap.has(item.code);
+            selectCell.appendChild(checkbox);
+            row.appendChild(selectCell);
+            row.appendChild(createCell(item.code));
+            row.appendChild(createCell(item.name));
+            row.appendChild(createCell(item.level));
             body.appendChild(row);
         }
         lastResults = items;
@@ -105,11 +164,12 @@
         }
         const start = page.number * page.size + 1;
         const end = page.number * page.size + page.numberOfElements;
+        const totalPages = page.totalPages ?? Math.ceil(total / page.size);
         metaText && (metaText.textContent = `Showing ${start}–${end} of ${total}`);
         metaText && (metaText.style.display = 'block');
         metaEmpty && (metaEmpty.style.display = 'none');
         table && (table.style.display = 'table');
-        pager && (pager.style.display = 'none');
+        pager && (pager.style.display = totalPages > 1 ? 'flex' : 'none');
     };
 
     const search = async (q) => {
@@ -121,15 +181,11 @@
         url.searchParams.set('size', '50');
         const res = await fetch(url);
         const data = await res.json();
+        filteredMode = false;
         renderRows(data.content || []);
         renderMeta(data);
+        updateFilterButtons();
     };
-
-    const selectedMeta = document.getElementById('selectedMeta');
-    const filterSelectedBtn = document.getElementById('filterSelectedBtn');
-    const clearFilterBtn = document.getElementById('clearFilterBtn');
-    const selectedMap = new Map();
-    let lastResults = null;
 
     const collectInitialResults = () => {
         const rows = Array.from(document.querySelectorAll('#resultsBody tr'));
@@ -144,10 +200,71 @@
             };
         }).filter((item) => item.code);
     };
+
     const updateFilterButtons = () => {
         const show = selectedMap.size > 0;
         filterSelectedBtn.style.display = show ? 'inline-block' : 'none';
         clearFilterBtn.style.display = show ? 'inline-block' : 'none';
+        saveSelectionBtn.style.display = (show && filteredMode) ? 'inline-block' : 'none';
+    };
+
+    const openModal = () => {
+        authMessage.textContent = '';
+        authModal.classList.add('show');
+    };
+
+    const closeAuthModal = () => {
+        authModal.classList.remove('show');
+    };
+
+    const updateUserInfo = (email) => {
+        userInfo.textContent = email || '';
+    };
+
+    const fetchMe = async () => {
+        try {
+            const res = await fetch('/api/selection/me');
+            const data = await res.json();
+            updateUserInfo(data.authenticated ? data.email : '');
+        } catch {
+            updateUserInfo('');
+        }
+    };
+
+    const saveSelection = async (items, mode) => {
+        const res = await fetch('/api/selection/save-auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: document.getElementById('authEmail').value.trim(),
+                password: document.getElementById('authPassword').value,
+                mode,
+                items
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            Swal.fire('Error', data.error || 'Failed to save selection.', 'error');
+            return;
+        }
+        closeAuthModal();
+        updateUserInfo(data.email);
+        Swal.fire('Saved', 'Selection saved.', 'success');
+    };
+
+    const saveSelectionWithSession = async (items) => {
+        const res = await fetch('/api/selection/save-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            Swal.fire('Error', data.error || 'Failed to save selection.', 'error');
+            return;
+        }
+        updateUserInfo(data.email);
+        Swal.fire('Saved', 'Selection saved.', 'success');
     };
 
     const wireSelection = () => {
@@ -161,6 +278,9 @@
                     });
                 } else {
                     selectedMap.delete(el.value);
+                    if (selectedMap.size === 0) {
+                        filteredMode = false;
+                    }
                 }
                 const selected = Array.from(selectedMap.values())
                     .map((item) => `${item.code} — ${item.name} (Level ${item.level})`);
@@ -178,6 +298,7 @@
 
     filterSelectedBtn.addEventListener('click', () => {
         const selected = Array.from(selectedMap.values());
+        filteredMode = true;
         renderRows(selected);
         renderMeta({
             totalElements: selected.length,
@@ -185,10 +306,12 @@
             size: selected.length || 1,
             numberOfElements: selected.length
         });
+        updateFilterButtons();
     });
 
     clearFilterBtn.addEventListener('click', () => {
         if (Array.isArray(lastResults)) {
+            filteredMode = false;
             renderRows(lastResults);
             renderMeta({
                 totalElements: lastResults.length,
@@ -196,8 +319,56 @@
                 size: lastResults.length || 1,
                 numberOfElements: lastResults.length
             });
+            updateFilterButtons();
         }
     });
+
+    saveSelectionBtn.addEventListener('click', async () => {
+        const selected = Array.from(selectedMap.values());
+        if (selected.length === 0) return;
+        try {
+            const meRes = await fetch('/api/selection/me');
+            const me = await meRes.json();
+            if (me.authenticated) {
+                await saveSelectionWithSession(selected);
+                return;
+            }
+        } catch {
+            // fall through to modal
+        }
+        openModal();
+    });
+
+    closeModal.addEventListener('click', closeAuthModal);
+
+    const validateAuthForm = () => {
+        const email = document.getElementById('authEmail').value.trim();
+        const password = document.getElementById('authPassword').value;
+        if (password.length < 8) {
+            authMessage.textContent = 'Password must be at least 8 characters.';
+            return false;
+        }
+        if (!email) {
+            authMessage.textContent = 'Email is required.';
+            return false;
+        }
+        authMessage.textContent = '';
+        return true;
+    };
+
+    loginSaveBtn.addEventListener('click', async () => {
+        if (!validateAuthForm()) return;
+        const selected = Array.from(selectedMap.values());
+        await saveSelection(selected, 'login');
+    });
+
+    registerSaveBtn.addEventListener('click', async () => {
+        if (!validateAuthForm()) return;
+        const selected = Array.from(selectedMap.values());
+        await saveSelection(selected, 'register');
+    });
+
+    fetchMe();
 
     input.addEventListener('input', () => {
         clearTimeout(timer);

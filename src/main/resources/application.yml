@@ -16,7 +16,6 @@ spring:
     open-in-view: false
   thymeleaf:
     cache: false
-
 compassio:
   data:
     seed: true
