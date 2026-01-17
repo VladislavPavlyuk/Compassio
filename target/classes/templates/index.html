@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Compassio</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; color: #111; }
+        header { display: flex; gap: 16px; align-items: baseline; margin-bottom: 16px; }
+        h1 { margin: 0; font-size: 22px; }
+        form { display: flex; gap: 8px; align-items: center; }
+        input[type="text"] { padding: 6px 8px; width: 360px; }
+        button { padding: 6px 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #fafafa; }
+        .meta { color: #666; font-size: 13px; margin-top: 8px; }
+        .pager { margin-top: 12px; display: flex; gap: 8px; align-items: center; }
+        .pager a { text-decoration: none; color: #1a4fd7; }
+        .pager span { color: #666; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Compassio</h1>
+    <form method="get" action="/">
+        <input type="text" name="q" placeholder="Search profession name"
+               th:value="${q}"/>
+        <button type="submit">Search</button>
+        <a th:href="@{/}">Reset</a>
+    </form>
+</header>
+
+<div class="meta" th:if="${total > 0}">
+    <span th:text="'Showing ' + (${page.number} * ${page.size} + 1) + '–' + (${page.number} * ${page.size} + ${page.numberOfElements}) + ' of ' + ${total}"></span>
+</div>
+<div class="meta" th:if="${total == 0}">
+    No data found.
+</div>
+
+<table th:if="${total > 0}">
+    <thead>
+    <tr>
+        <th style="width: 140px;">Code</th>
+        <th>Name</th>
+        <th style="width: 80px;">Level</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="p : ${page.content}">
+        <td th:text="${p.code}"></td>
+        <td th:text="${p.name}"></td>
+        <td th:text="${p.level}"></td>
+    </tr>
+    </tbody>
+</table>
+
+<div class="pager" th:if="${page.totalPages > 1}">
+    <a th:if="${page.hasPrevious()}"
+       th:href="@{/(page=${page.number - 1}, size=${page.size}, q=${q})}">Prev</a>
+    <span th:text="'Page ' + (${page.number} + 1) + ' / ' + ${page.totalPages}"></span>
+    <a th:if="${page.hasNext()}"
+       th:href="@{/(page=${page.number + 1}, size=${page.size}, q=${q})}">Next</a>
+</div>
+</body>
+</html>

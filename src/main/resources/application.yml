@@ -1,0 +1,23 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:55432/compassio
+    username: compassio
+    password: compassio
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  thymeleaf:
+    cache: false
+
+compassio:
+  data:
+    seed: true
+    file: classpath:data/SK ISCO-08_2020.xlsx
