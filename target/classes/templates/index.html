@@ -81,6 +81,7 @@
     <a th:if="${page.hasNext()}"
        th:href="@{/(page=${page.number + 1}, size=${page.size}, q=${q})}">Next</a>
 </div>
+<div class="meta" id="lastSelectionLabel" style="display: none;">Last saved selection</div>
 <div class="meta" id="selectedMeta"></div>
 
 <div class="modal" id="authModal">
@@ -109,6 +110,7 @@
     const pager = document.getElementById('pager');
     const form = document.getElementById('searchForm');
     const selectedMeta = document.getElementById('selectedMeta');
+    const lastSelectionLabel = document.getElementById('lastSelectionLabel');
     const filterSelectedBtn = document.getElementById('filterSelectedBtn');
     const clearFilterBtn = document.getElementById('clearFilterBtn');
     const saveSelectionBtn = document.getElementById('saveSelectionBtn');
@@ -226,8 +228,33 @@
             const res = await fetch('/api/selection/me');
             const data = await res.json();
             updateUserInfo(data.authenticated ? data.email : '');
+            if (data.authenticated) {
+                await fetchLatestSelection();
+            }
         } catch {
             updateUserInfo('');
+        }
+    };
+
+    const fetchLatestSelection = async () => {
+        try {
+            const res = await fetch('/api/selection/latest');
+            const data = await res.json();
+            if (!data.authenticated) {
+                return;
+            }
+            if (data.selection && Array.isArray(data.selection.items) && data.selection.items.length) {
+                lastSelectionLabel.style.display = 'block';
+                renderRows(data.selection.items);
+                renderMeta({
+                    totalElements: data.selection.items.length,
+                    number: 0,
+                    size: data.selection.items.length || 1,
+                    numberOfElements: data.selection.items.length
+                });
+            }
+        } catch {
+            // ignore
         }
     };
 

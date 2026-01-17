@@ -1,6 +1,7 @@
 package com.compassio.selection;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.compassio.auth.UserAccount;
 
@@ -29,5 +30,9 @@ public class SelectionService {
 
     public List<Selection> saveAll(@NonNull List<Selection> selections) {
         return selectionRepository.saveAll(selections);
+    }
+
+    public Optional<Selection> findLatest(UserAccount user) {
+        return selectionRepository.findTopByUserOrderByCreatedAtDesc(user);
     }
 }

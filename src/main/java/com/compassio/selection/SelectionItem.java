@@ -38,6 +38,18 @@ public class SelectionItem {
         this.level = level;
     }
 
+    public String getCode() {
+        return code;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getLevel() {
+        return level;
+    }
+
     public void setSelection(Selection selection) {
         this.selection = selection;
     }

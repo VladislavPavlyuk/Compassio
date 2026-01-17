@@ -125,6 +125,32 @@ public class SelectionController {
         return ResponseEntity.ok(response);
     }
 
+    @org.springframework.web.bind.annotation.GetMapping("/api/selection/latest")
+    public ResponseEntity<?> latest(HttpSession session) {
+        Object userId = session.getAttribute("userId");
+        if (userId == null) {
+            return ResponseEntity.ok(Map.of("authenticated", false));
+        }
+        UserAccount user = userRepository.findById((Long) userId).orElse(null);
+        if (user == null) {
+            session.invalidate();
+            return ResponseEntity.ok(Map.of("authenticated", false));
+        }
+        return selectionService.findLatest(user)
+                .map(selection -> {
+                    List<SelectionViewItem> items = selection.getItems().stream()
+                            .map(item -> new SelectionViewItem(item.getCode(), item.getName(), item.getLevel()))
+                            .toList();
+                    SelectionViewResponse response = new SelectionViewResponse(
+                            selection.getId(),
+                            selection.getCreatedAt(),
+                            items
+                    );
+                    return ResponseEntity.ok(Map.of("authenticated", true, "selection", response));
+                })
+                .orElseGet(() -> ResponseEntity.ok(Map.of("authenticated", true, "selection", null)));
+    }
+
 
     private boolean isValidEmail(String email) {
         return email != null && EMAIL_PATTERN.matcher(email).matches();

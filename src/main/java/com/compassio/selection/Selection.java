@@ -73,4 +73,8 @@ public class Selection {
         items.add(item);
         item.setSelection(this);
     }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 }
