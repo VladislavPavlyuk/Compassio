@@ -27,6 +27,8 @@
         <input type="text" name="q" id="searchInput" placeholder="Search by name or code"
                autocomplete="off" th:value="${q}"/>
         <button type="submit">Search</button>
+        <button type="button" id="filterSelectedBtn" style="display: none;">Filter selected</button>
+        <button type="button" id="clearFilterBtn" style="display: none;">Clear filter</button>
         <a th:href="@{/}">Reset</a>
     </form>
 </header>
@@ -41,6 +43,7 @@
 <table id="resultsTable" th:if="${total > 0}">
     <thead>
     <tr>
+        <th style="width: 48px;">Select</th>
         <th style="width: 140px;">Code</th>
         <th>Name</th>
         <th style="width: 80px;">Level</th>
@@ -48,6 +51,11 @@
     </thead>
     <tbody id="resultsBody">
     <tr th:each="p : ${page.content}">
+        <td>
+            <input type="checkbox" name="professionSelect"
+                   th:value="${p.code}"
+                   th:attr="data-name=${p.name},data-level=${p.level}"/>
+        </td>
         <td th:text="${p.code}"></td>
         <td th:text="${p.name}"></td>
         <td th:text="${p.level}"></td>
@@ -62,6 +70,7 @@
     <a th:if="${page.hasNext()}"
        th:href="@{/(page=${page.number + 1}, size=${page.size}, q=${q})}">Next</a>
 </div>
+<div class="meta" id="selectedMeta"></div>
 
 <script>
     const input = document.getElementById('searchInput');
@@ -77,9 +86,12 @@
         body.innerHTML = '';
         for (const item of items) {
             const row = document.createElement('tr');
-            row.innerHTML = `<td>${item.code}</td><td>${item.name}</td><td>${item.level}</td>`;
+            const checked = selectedMap.has(item.code) ? 'checked' : '';
+            row.innerHTML = `<td><input type="checkbox" name="professionSelect" value="${item.code}" data-name="${item.name}" data-level="${item.level}" ${checked}/></td><td>${item.code}</td><td>${item.name}</td><td>${item.level}</td>`;
             body.appendChild(row);
         }
+        lastResults = items;
+        wireSelection();
     };
 
     const renderMeta = (page) => {
@@ -112,6 +124,80 @@
         renderRows(data.content || []);
         renderMeta(data);
     };
+
+    const selectedMeta = document.getElementById('selectedMeta');
+    const filterSelectedBtn = document.getElementById('filterSelectedBtn');
+    const clearFilterBtn = document.getElementById('clearFilterBtn');
+    const selectedMap = new Map();
+    let lastResults = null;
+
+    const collectInitialResults = () => {
+        const rows = Array.from(document.querySelectorAll('#resultsBody tr'));
+        if (rows.length === 0) return [];
+        return rows.map((row) => {
+            const cells = row.querySelectorAll('td');
+            const checkbox = row.querySelector('input[name="professionSelect"]');
+            return {
+                code: cells[1]?.textContent?.trim() || checkbox?.value || '',
+                name: cells[2]?.textContent?.trim() || checkbox?.dataset?.name || '',
+                level: parseInt(cells[3]?.textContent?.trim() || checkbox?.dataset?.level || '0', 10)
+            };
+        }).filter((item) => item.code);
+    };
+    const updateFilterButtons = () => {
+        const show = selectedMap.size > 0;
+        filterSelectedBtn.style.display = show ? 'inline-block' : 'none';
+        clearFilterBtn.style.display = show ? 'inline-block' : 'none';
+    };
+
+    const wireSelection = () => {
+        document.querySelectorAll('input[name="professionSelect"]').forEach((el) => {
+            el.addEventListener('change', () => {
+                if (el.checked) {
+                    selectedMap.set(el.value, {
+                        code: el.value,
+                        name: el.dataset.name || '',
+                        level: parseInt(el.dataset.level || '0', 10)
+                    });
+                } else {
+                    selectedMap.delete(el.value);
+                }
+                const selected = Array.from(selectedMap.values())
+                    .map((item) => `${item.code} — ${item.name} (Level ${item.level})`);
+                selectedMeta.textContent = selected.length
+                    ? `Selected (${selected.length}): ${selected.join('; ')}`
+                    : '';
+                updateFilterButtons();
+            });
+        });
+    };
+
+    lastResults = collectInitialResults();
+    wireSelection();
+    updateFilterButtons();
+
+    filterSelectedBtn.addEventListener('click', () => {
+        const selected = Array.from(selectedMap.values());
+        renderRows(selected);
+        renderMeta({
+            totalElements: selected.length,
+            number: 0,
+            size: selected.length || 1,
+            numberOfElements: selected.length
+        });
+    });
+
+    clearFilterBtn.addEventListener('click', () => {
+        if (Array.isArray(lastResults)) {
+            renderRows(lastResults);
+            renderMeta({
+                totalElements: lastResults.length,
+                number: 0,
+                size: lastResults.length || 1,
+                numberOfElements: lastResults.length
+            });
+        }
+    });
 
     input.addEventListener('input', () => {
         clearTimeout(timer);

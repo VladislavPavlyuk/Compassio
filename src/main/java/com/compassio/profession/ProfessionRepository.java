@@ -9,10 +9,16 @@ import org.springframework.data.repository.query.Param;
 public interface ProfessionRepository extends JpaRepository<Profession, Long> {
     @Query("""
             select p from Profession p
-            where lower(p.name) like lower(concat('%', :q, '%'))
-               or lower(p.code) like lower(concat('%', :q, '%'))
-               or (:digits <> '' and regexp_replace(p.name, '\\D', '', 'g') like concat('%', :digits, '%'))
+            where (
+                lower(p.name) like lower(concat('%', :q, '%'))
+                or lower(p.code) like lower(concat('%', :q, '%'))
+                or (:digits <> '' and regexp_replace(p.name, '\\D', '', 'g') like concat('%', :digits, '%'))
+            )
             order by p.code asc
             """)
-    Page<Profession> search(@Param("q") String q, @Param("digits") String digits, Pageable pageable);
+    Page<Profession> search(
+            @Param("q") String q,
+            @Param("digits") String digits,
+            Pageable pageable
+    );
 }
